@@ -282,3 +282,96 @@ variables_corr <- df_ventas_completo %>%
 cor_matrix <- cor(variables_corr)
 cat("🔹 Matriz de correlación:\n")
 print(round(cor_matrix, 2))
+
+
+###########################
+# GRAFICAS DE APOYO / UMG #
+###########################
+library(ggplot2)
+library(dplyr)
+install.packages('corrplot')
+library(corrplot)
+
+# 1. Gráfico de barras: Top 10 marcas más vendidas
+# -------------------------------------------------
+top_marcas <- df_ventas_completo %>%
+  group_by(marca_nombre) %>%
+  summarise(total_ventas = sum(cantidad_vendida, na.rm = TRUE)) %>%
+  arrange(desc(total_ventas)) %>%
+  slice(1:10)
+
+ggplot(top_marcas, aes(x = reorder(marca_nombre, total_ventas), y = total_ventas)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +  # Mejora la legibilidad para etiquetas largas
+  labs(
+    title = "Top 10 marcas más vendidas",
+    x = "Marca",
+    y = "Total de ventas"
+  ) +
+  theme_minimal()
+
+# 2. Boxplot: Distribución de cantidad vendida
+# --------------------------------------------
+ggplot(df_ventas_completo, aes(y = cantidad_vendida)) +
+  geom_boxplot(fill = "lightgreen", outlier.color = "red") +
+  labs(
+    title = "Distribución de la cantidad vendida",
+    y = "Cantidad vendida"
+  ) +
+  theme_minimal()
+
+# 3. Histograma con líneas de media y mediana
+# -------------------------------------------
+ggplot(df_ventas_completo, aes(x = cantidad_vendida)) +
+  geom_histogram(binwidth = 10, fill = "skyblue", color = "black") +
+  geom_vline(aes(xintercept = mean(cantidad_vendida, na.rm = TRUE)), color = "red", linetype = "dashed", size = 1, show.legend = TRUE) +
+  geom_vline(aes(xintercept = median(cantidad_vendida, na.rm = TRUE)), color = "blue", linetype = "dashed", size = 1) +
+  labs(
+    title = "Histograma de ventas con media (rojo) y mediana (azul)",
+    x = "Cantidad vendida",
+    y = "Frecuencia"
+  ) +
+  theme_minimal()
+
+# 4. Gráfico de pastel: Probabilidad de ventas > 100
+# --------------------------------------------------
+prob_evento <- mean(df_ventas_completo$cantidad_vendida > 100, na.rm = TRUE)
+
+df_prob <- data.frame(
+  categoria = c("≤ 100 unidades", "> 100 unidades"),
+  probabilidad = c(1 - prob_evento, prob_evento)
+)
+
+ggplot(df_prob, aes(x = "", y = probabilidad, fill = categoria)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar("y") +
+  labs(
+    title = "Distribución de probabilidad: ventas > 100 unidades",
+    fill = "Categoría"
+  ) +
+  theme_void()
+
+# 5. Matriz de correlación: Variables numéricas
+# --------------------------------------------
+# Selección de columnas numéricas relevantes
+num_cols <- df_ventas_completo %>%
+  select_if(is.numeric)
+
+# Matriz de correlación
+cor_matrix <- cor(num_cols, use = "pairwise.complete.obs")
+
+# Visualización en mapa de calor
+corrplot(cor_matrix, method = "color", type = "upper", tl.col = "black", addCoef.col = "black")
+
+# 6. Diagrama de dispersión con línea de regresión
+# ------------------------------------------------
+# Suponiendo que tienes una variable 'pib' como predictor económico
+ggplot(df_ventas_completo, aes(x = pib, y = cantidad_vendida)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", color = "red", se = TRUE) +
+  labs(
+    title = "Relación entre PIB y ventas",
+    x = "Producto Interno Bruto",
+    y = "Cantidad vendida"
+  ) +
+  theme_minimal()
