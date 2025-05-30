@@ -264,3 +264,30 @@ select*from ventas_mensuales;
 
 -- Confirma la inserción
 SELECT 'Datos de prueba insertados con éxito.' AS Mensaje;
+---------------------------------------------------------------------
+
+CREATE TABLE indicadores_economicos_anuales (
+    id SERIAL PRIMARY KEY,
+    pais_id INT NOT NULL REFERENCES paises(id),
+    anio SMALLINT NOT NULL,
+    pib_valor NUMERIC(20, 2), -- Producto Interno Bruto
+    tasa_interes NUMERIC(5, 2), -- Tasa de interés promedio o relevante
+    confianza_consumidor NUMERIC(5, 2), -- Índice de confianza del consumidor
+    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(pais_id, anio) -- Asegura un registro único por país y año
+);
+
+-- Datos de prueba para la tabla 'indicadores_economicos_anuales'
+INSERT INTO indicadores_economicos_anuales (pais_id, anio, pib_valor, tasa_interes, confianza_consumidor) VALUES
+((SELECT id FROM paises WHERE nombre = 'Guatemala'), 2022, 90000000000.00, 4.50, 85.2),
+((SELECT id FROM paises WHERE nombre = 'Guatemala'), 2023, 93000000000.00, 4.70, 86.5),
+((SELECT id FROM paises WHERE nombre = 'Alemania'), 2022, 4000000000000.00, 1.20, 95.1),
+((SELECT id FROM paises WHERE nombre = 'Alemania'), 2023, 4100000000000.00, 1.50, 96.3),
+((SELECT id FROM paises WHERE nombre = 'EE. UU.'), 2022, 25000000000000.00, 2.00, 98.7),
+((SELECT id FROM paises WHERE nombre = 'EE. UU.'), 2023, 26000000000000.00, 2.50, 99.1),
+((SELECT id FROM paises WHERE nombre = 'Japón'), 2022, 4300000000000.00, 0.10, 90.0),
+((SELECT id FROM paises WHERE nombre = 'Japón'), 2023, 4350000000000.00, 0.20, 91.5),
+((SELECT id FROM paises WHERE nombre = 'China'), 2022, 18000000000000.00, 3.60, 88.0),
+((SELECT id FROM paises WHERE nombre = 'China'), 2023, 18500000000000.00, 3.50, 89.2),
+((SELECT id FROM paises WHERE nombre = 'Corea del Sur'), 2022, 1700000000000.00, 1.75, 92.0),
+((SELECT id FROM paises WHERE nombre = 'Corea del Sur'), 2023, 1750000000000.00, 2.00, 93.0);
