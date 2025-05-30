@@ -206,3 +206,79 @@ ggplot(df_grafico, aes(x = mes, y = prediccion_ventas)) +
     y = "Ventas Predichas"
   ) +
   theme_minimal()
+
+
+# -------------------------------------
+# ESTIMACIÓN DE LA MUESTRA
+# -------------------------------------
+# Tamaño de la muestra usando fórmula clásica (p=0.5, Z=1.96, e=5%)
+n_poblacion <- nrow(df_ventas_completo)
+Z <- 1.96
+p <- 0.5
+e <- 0.05
+n_muestra <- round((Z^2 * p * (1 - p)) / (e^2) / (1 + ((Z^2 * p * (1 - p)) / (e^2 * n_poblacion))))
+cat("🔹 Tamaño estimado de muestra:", n_muestra, "\n")
+
+# -------------------------------------
+# MARCAS MÁS VENDIDAS
+# -------------------------------------
+top_marcas <- df_ventas_completo %>%
+  group_by(marca_nombre) %>%
+  summarise(total_ventas = sum(cantidad_vendida)) %>%
+  arrange(desc(total_ventas)) %>%
+  slice(1:10)
+print(top_marcas)
+
+# -------------------------------------
+# MEDIDAS DE RESUMEN
+# -------------------------------------
+summary_stats <- summary(df_ventas_completo$cantidad_vendida)
+cat("🔹 Medidas de resumen de ventas:\n")
+print(summary_stats)
+
+# -------------------------------------
+# MEDIDAS DE POSICIÓN
+# -------------------------------------
+cuartiles <- quantile(df_ventas_completo$cantidad_vendida, probs = c(0.25, 0.5, 0.75))
+cat("🔹 Cuartiles:\n")
+print(cuartiles)
+
+# -------------------------------------
+# MEDIDAS DE DISPERSIÓN
+# -------------------------------------
+desviacion_estandar <- sd(df_ventas_completo$cantidad_vendida)
+rango <- range(df_ventas_completo$cantidad_vendida)
+cat("🔹 Desviación estándar:", desviacion_estandar, "\n")
+cat("🔹 Rango:", rango[2] - rango[1], "\n")
+
+# -------------------------------------
+# MEDIDAS DE TENDENCIA CENTRAL
+# -------------------------------------
+media <- mean(df_ventas_completo$cantidad_vendida)
+mediana <- median(df_ventas_completo$cantidad_vendida)
+moda <- Mode(df_ventas_completo$cantidad_vendida)  # Usando DescTools
+cat("🔹 Media:", media, "\n")
+cat("🔹 Mediana:", mediana, "\n")
+cat("🔹 Moda:", moda, "\n")
+
+# -------------------------------------
+# PROBABILIDAD DE UN EVENTO
+# -------------------------------------
+# Probabilidad de vender más de 100 unidades
+prob_evento <- mean(df_ventas_completo$cantidad_vendida > 100)
+cat("🔹 Probabilidad de vender más de 100 unidades:", round(prob_evento, 4), "\n")
+
+# -------------------------------------
+# REGRESIÓN Y CORRELACIÓN
+# -------------------------------------
+modelo_lineal <- lm(cantidad_vendida ~ pib + tasa_interes + confianza_consumidor + valor_ipc, data = df_ventas_completo)
+cat("🔹 Resumen del modelo de regresión lineal:\n")
+print(summary(modelo_lineal))
+
+# Correlación entre variables económicas y ventas
+variables_corr <- df_ventas_completo %>%
+  select(cantidad_vendida, pib, tasa_interes, confianza_consumidor, valor_ipc)
+
+cor_matrix <- cor(variables_corr)
+cat("🔹 Matriz de correlación:\n")
+print(round(cor_matrix, 2))
