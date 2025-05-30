@@ -1,75 +1,57 @@
-# install.packages("RPostgres")
-# install.packages("dplyr")
-# install.packages("ggplot2")
+# Librerias Necesarias Proyecto
 install.packages("caret")
 install.packages("randomForest")
 install.packages("forecast")
 install.packages("stringi")
 
-library(RPostgres)
-library(dplyr)      # Para manipulación de datos
-library(ggplot2)    # Para gráficos
-library(caret)      # Para preparación de datos y evaluación del modelo
-library(randomForest) # Para el modelo Random Forest
-library(forecast) # Descomentar si usas modelos de series de tiempo como ARIMA
- library(DescTools) # Descomentar si necesitas la función Mode()
-
-library(randomForest) # Para el modelo Random Forest
-library(caret)       # ¡Asegúrate de que esta línea esté aquí y se ejecute! Para createDataPartition
+library(RPostgres)          # Manipulación y conexión con base de datos
+library(dplyr)              # Para manipulación de datos
+library(ggplot2)            # Para gráficos
+library(caret)              # Para preparación de datos y evaluación del modelo
+library(randomForest)       # Para el modelo Random Forest
+library(forecast)           # ARIMA
+library(DescTools)          # Función Mode()
 library(scales)
 
 #----------------------------
-# Configuración de la conexión a la base de datos
-db_host <- "localhost"
-db_port <- 5432
-db_name <- "metodos_numericos"
-db_user <- "postgres" # ¡CAMBIA ESTO!
-db_password <- "123"     # ¡CAMBIA ESTO!
+# Conexión con base de datos
 
-# Establecer la conexión
-con <- dbConnect(RPostgres::Postgres(),
-                 host = db_host,
-                 port = db_port,
-                 dbname = db_name,
-                 user = db_user,
-                 password = db_password)
+source('src/base_datos.R')
+conn <- connect_db()
 
-# Verificar la conexión
-if (dbIsValid(con)) {
-  message("Conexión a la base de datos exitosa!")
+if (test_connection(conn)) {
 } else {
-  stop("Fallo al conectar a la base de datos.")
+  message("[ERROR] NO SE PUDO CONECTAR A LA BASE DE DATOS")
 }
 
-#----------------------------
-# --- 1. Recolección y Unión de Datos ---
-# Leer todas las tablas relevantes y unirlas para crear el dataframe 'completo'
 
-df_ventas <- dbReadTable(con, "ventas_mensuales")
-df_modelos <- dbReadTable(con, "modelos")
-df_marcas <- dbReadTable(con, "marcas")
-df_paises <- dbReadTable(con, "paises")
-df_indicadores <- dbReadTable(con, "indicadores_economicos_anuales") # ¡Nueva tabla!
-df_ipc <- dbReadTable(con, "ipc_mensual") # Podrías usarlo si el modelo se beneficia de la inflación
-#df_vehiculos <- dbReadTable(con, "vehiculos") 
 #----------------------------
+# Recolección de Datos
+
+source('src/base_datos_repositorio.R')
+df_ventas <- get_ventas_mensuales(conn)
+df_vehiculos <- get_vehiculos(conn)
+df_marcas <- get_marcas(conn)
+df_modelos <- get_modelos(conn)
+df_paises <- get_paises(conn)
+df_indicadores <- get_indicadores(conn)
+df_ipc <- get_ipc(conn)
+
+#----------------------------
+# DataFrame maestro de ventas
 df_ventas_completo <- df_ventas %>%
-  left_join(df_modelos, by = c("modelo_id" = "id"), suffix = c("", "_modelo")) %>%
+  left_join(df_vehiculos, by = c("vehiculo_id" = "id"), suffix = c("", "_vehiculo")) %>%
+  left_join(df_modelos, by = c("modelo" = "id"), suffix = c("","_modelo")) %>%
   left_join(df_marcas, by = c("marca" = "id"), suffix = c("", "_marca")) %>%
   left_join(df_paises, by = c("pais_id" = "id"), suffix = c("", "_pais")) %>%
   left_join(df_indicadores, by = c("pais_id" = "pais_id", "anio" = "anio"), suffix = c("", "_indicador")) %>%
   left_join(df_ipc, by = c("pais_id" = "pais", "anio" = "anio", "mes" = "mes"), suffix = c("", "_ipc"))
 
 #----------------------------
-message("Columnas en df_ventas_completo ANTES de renombrar:")
-print(names(df_ventas_completo))
-print(names(df_ventas_completo)
-      
-      
-# Renombrar columnas para mayor claridad y consistencia con el código original
+# Renombrar columnas para mayor claridad
 df_ventas_completo <- df_ventas_completo %>%
   rename(
-    modelo_nombre = nombre, # CAMBIO: 'nombre' es el nombre del modelo
+    modelo_nombre = nombre,
     marca_nombre = nombre_marca,
     pais_nombre = nombre_pais,
     pib = pib_valor,
@@ -79,8 +61,7 @@ df_ventas_completo <- df_ventas_completo %>%
   )
 
 #----------------------------
-# Seleccionar solo las columnas que vas a usar para el modelo y análisis
-# Asegúrate de incluir 'cantidad_vendida' como tu variable objetivo
+# Columnas utiles para analisis
 df_ventas_completo <- df_ventas_completo %>%
   select(
     cantidad_vendida,
@@ -96,68 +77,70 @@ df_ventas_completo <- df_ventas_completo %>%
   )
 
 #----------------------------
-# Eliminar filas con valores nulos en las columnas clave para el modelado
-# Es crucial asegurarse de que las variables usadas en el modelo no tengan NAs.
-# Si tienes NAs en pib, tasa_interes, etc., df_modelo_final los tendrá.
-# Considera la imputación si pierdes muchas filas aquí.
+# Eliminar filas con valores nulos
+
 df_ventas_completo <- na.omit(df_ventas_completo)
 
-message("Primeras filas del dataframe combinado (df_ventas_completo):")
-print(head(df_ventas_completo))
-message(paste("Dimensiones del dataframe combinado:", nrow(df_ventas_completo), "filas,", ncol(df_ventas_completo), "columnas"))
+#----------------------------
+# Marcas mas vendidas por año
 
-#--------------------#############################################################33
-# --- 2. Preprocesamiento de los datos y Selección de Características ---
-# Convertir variables categóricas a factores
-df_modelo <- df_ventas_completo %>%
-  mutate(
-    mes_factor = as.factor(mes),
-    marca_factor = as.factor(marca_nombre),
-    pais_factor = as.factor(pais_nombre),
-    modelo_factor = as.factor(modelo_nombre)
-  )
+mas_vendidas_por_anio <- df_ventas_completo %>%
+  group_by(anio, marca_nombre) %>%
+  summarise(total_vendido = sum(cantidad_vendida, na.rm = TRUE), .groups = "drop") %>%
+  arrange(anio, desc(total_vendido)) %>%
+  slice_max(order_by = total_vendido, n = 1, by = anio)
 
-
-# Para Random Forest, podemos usar las variables factor directamente.
-# Seleccionar las columnas finales para el modelo.
-df_modelo_final <- df_modelo %>%
-  select(
-    cantidad_vendida,
-    anio,
-    mes_factor,
-    marca_factor,
-    pais_factor,
-    modelo_factor,
-    pib,
-    tasa_interes,
-    confianza_consumidor,
-    valor_ipc
-  )
-
-message("Variables utilizadas para el modelo:")
-print(names(df_modelo_final))
-
-
-
-#---####################################################################333
-# --- 3. Análisis Exploratorio de Datos (del código original) ---
-# Marcas más vendidas por año (ejemplo)
-marcas_top <- df_ventas_completo %>%
-  group_by(marca_nombre, anio) %>%
-  summarise(ventas_totales = sum(cantidad_vendida, na.rm = TRUE), .groups = 'drop') %>%
-  arrange(anio, desc(ventas_totales))
-message("Top marcas vendidas por año:")
-print(head(marcas_top))
 
 #--------------------------------
 # Medidas de tendencia central y dispersión para 'cantidad_vendida'
-message("Summary de cantidad_vendida:")
-print(summary(df_ventas_completo$cantidad_vendida))
-message(paste("Mean:", mean(df_ventas_completo$cantidad_vendida)))
-message(paste("Median:", median(df_ventas_completo$cantidad_vendida)))
-message(paste("SD:", sd(df_ventas_completo$cantidad_vendida)))
 
+library(glue)
+
+summary_stats <- summary(df_ventas_completo$cantidad_vendida)
+print(summary_stats)
+
+media <- round(mean(df_ventas_completo$cantidad_vendida), 2)
+mediana <- round(median(df_ventas_completo$cantidad_vendida), 2)
+desviacion <- round(sd(df_ventas_completo$cantidad_vendida), 2)
+
+message(glue("Resumen estadístico de 'cantidad_vendida':"))
+message(glue("Media: {media}"))
+message(glue("Mediana: {mediana}"))
+message(glue("Desviación estándar: {desviacion}"))
+
+
+#----------------------------
 # Histograma
+
+library(ggplot2)
+
+# Opcional: Eliminar valores extremadamente altos (outliers) para mejor visualización
+# Puedes ajustar el límite superior si lo necesitas
+df_filtrado <- df_ventas_completo[df_ventas_completo$cantidad_vendida <= quantile(df_ventas_completo$cantidad_vendida, 0.99), ]
+
+# Cálculo de estadísticas
+media <- mean(df_filtrado$cantidad_vendida)
+mediana <- median(df_filtrado$cantidad_vendida)
+
+# Histograma con ggplot2
+library(ggplot2)
+
+# Filtramos el top 1% más alto
+limite <- quantile(df_ventas_completo$cantidad_vendida, 0.99)
+df_filtrado <- df_ventas_completo[df_ventas_completo$cantidad_vendida <= limite, ]
+
+ggplot(df_filtrado, aes(x = cantidad_vendida)) +
+  geom_histogram(binwidth = 10, fill = "steelblue", color = "black") +
+  labs(
+    title = "Distribución de cantidad vendida (sin outliers)",
+    x = "Cantidad Vendida",
+    y = "Frecuencia"
+  ) +
+  theme_minimal()
+
+
+
+-----------------------------
 hist(df_ventas_completo$cantidad_vendida, main = "Histograma de Cantidad Vendida",
      xlab = "Cantidad Vendida", ylab = "Frecuencia", col = "lightblue", border = "black")
 
