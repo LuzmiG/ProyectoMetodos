@@ -365,7 +365,7 @@ corrplot(cor_matrix, method = "color", type = "upper", tl.col = "black", addCoef
 
 # 6. Diagrama de dispersión con línea de regresión
 # ------------------------------------------------
-# Suponiendo que tienes una variable 'pib' como predictor económico
+# PIB  como predictor económico
 ggplot(df_ventas_completo, aes(x = pib, y = cantidad_vendida)) +
   geom_point(alpha = 0.6) +
   geom_smooth(method = "lm", color = "red", se = TRUE) +
